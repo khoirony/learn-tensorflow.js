@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deteksi Objek dengan TensorFlow.js</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+  <style>
+    /* Sembunyikan elemen video */
+    #video {
+      display: none;
+    }
+    /* Canvas mengambil 100% lebar dan tinggi layar */
+    #canvas {
+      position: static;
+      width: 800px;
+      height: 600px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Deteksi Objek dengan TensorFlow.js</h1>
+  <video id="video" autoplay></video>
+  <canvas id="canvas"></canvas>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let cocoModel;
+
+    // Setup Webcam
+    async function setupWebcam() {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+      video.play();
+    }
+
+    // Load COCO-SSD Model
+    async function loadModel() {
+      cocoModel = await cocoSsd.load();
+      detectObjects();
+    }
+
+    // Detect Objects from the webcam
+    async function detectObjects() {
+      const predictions = await cocoModel.detect(video);
+      drawPredictions(predictions);
+      requestAnimationFrame(detectObjects); // Keep detecting objects in real-time
+    }
+
+    // Draw predictions on the canvas
+    function drawPredictions(predictions) {
+      // Sesuaikan ukuran canvas dengan ukuran layar
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      // Clear previous drawings
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      // Draw the video frame to the canvas, sesuaikan ukuran video
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Hitung rasio perbandingan antara ukuran video dan canvas
+      const ratioX = canvas.width / video.videoWidth;
+      const ratioY = canvas.height / video.videoHeight;
+
+      // Loop melalui hasil prediksi
+      predictions.forEach(prediction => {
+        // Sesuaikan bounding box dengan ukuran canvas
+        const adjustedBBox = prediction.bbox.map((coord, index) => {
+          return index % 2 === 0 ? coord * ratioX : coord * ratioY;
+        });
+
+        // Draw bounding box
+        ctx.beginPath();
+        ctx.rect(...adjustedBBox);
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'red';
+        ctx.fillStyle = 'red';
+        ctx.stroke();
+
+        // Draw label
+        ctx.font = '46px Arial';
+        ctx.fillStyle = 'black';
+        ctx.fillText(`${prediction.class}: ${(prediction.score * 100).toFixed(2)}%`, adjustedBBox[0], adjustedBBox[1] - 5);
+      });
+    }
+
+    // Initialize everything
+    setupWebcam();
+    loadModel();
+
+    // Update canvas size on window resize
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+  </script>
+</body>
+</html>

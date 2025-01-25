@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pendeteksi 2 Tangan dengan TensorFlow.js</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose"></script>
+  <script src="https://unpkg.com/@tensorflow/tfjs-backend-webgl"></script>
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      flex-direction: column;
+      background-color: #f0f0f0;
+    }
+    video {
+      border: 2px solid black;
+    }
+    #count {
+      font-size: 2rem;
+      font-weight: bold;
+      margin-top: 20px;
+    }
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+  <video id="video" width="640" height="480" autoplay></video>
+  <canvas id="canvas" width="640" height="480"></canvas>
+  <div id="count">Jumlah Jari Tidak Dilipat: 0</div>
+
+  <script>
+    let video;
+    let handPoseModel;
+    let canvas, ctx;
+
+    async function setup() {
+      // Mengakses kamera dengan resolusi lebih tinggi
+      video = document.getElementById('video');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 1280, height: 720 } // Resolusi lebih tinggi
+      });
+      video.srcObject = stream;
+
+      // Menunggu hingga video dapat diputar
+      await new Promise((resolve) => {
+        video.onloadedmetadata = () => {
+          resolve();
+        };
+      });
+
+      // Menambahkan canvas untuk menggambar garis
+      canvas = document.getElementById('canvas');
+      ctx = canvas.getContext('2d');
+
+      // Menggunakan WebGL untuk akselerasi hardware
+      await tf.setBackend('webgl');
+      
+      // Memuat model handpose
+      handPoseModel = await handpose.load();
+      detectHands();
+    }
+
+    async function detectHands() {
+      // Menjalankan prediksi deteksi tangan pada setiap frame video
+      const predictions = await handPoseModel.estimateHands(video);
+
+      // Kosongkan canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (predictions.length > 0) {
+        let count = 0;
+        let leftHand = null;
+        let rightHand = null;
+
+        // Memproses setiap tangan yang terdeteksi
+        predictions.forEach((prediction) => {
+          const landmarks = prediction.landmarks;
+          const wrist = landmarks[0]; // Landmark pergelangan tangan
+
+          // Menentukan tangan kiri atau kanan berdasarkan posisi pergelangan
+          if (wrist[0] < canvas.width / 2) {
+            leftHand = landmarks;  // Tangan kiri
+          } else {
+            rightHand = landmarks; // Tangan kanan
+          }
+
+          // Mengecek jari yang tidak dilipat
+          const fingerTips = [4, 8, 12, 16, 20]; // Indeks ujung jari (thumb, index, middle, ring, pinky)
+          fingerTips.forEach((tipIndex, index) => {
+            const base = landmarks[tipIndex - (index === 0 ? 1 : 2)];
+            const middle = landmarks[tipIndex - 2];
+
+            // Cek apakah jari dilipat atau tidak berdasarkan jarak
+            if (isFingerBent(landmarks, tipIndex, base, middle)) {
+              count++; // Jari dianggap dilipat jika jaraknya pendek
+            }
+          });
+        });
+
+        // Menampilkan jumlah jari yang tidak dilipat
+        document.getElementById('count').innerText = `Jumlah Jari Tidak Dilipat: ${5 - count}`;
+
+        // Gambar garis untuk tangan kiri dan kanan
+        if (leftHand) drawHand(leftHand, 0);  // Tangan kiri di sisi kiri kanvas
+        if (rightHand) drawHand(rightHand, canvas.width / 2);  // Tangan kanan di sisi kanan kanvas
+      }
+
+      // Memanggil lagi untuk mendeteksi frame berikutnya
+      requestAnimationFrame(detectHands);
+    }
+
+    function isFingerBent(landmarks, fingerTip, base, middle) {
+      // Menghitung jarak antara ujung jari dan pangkal jari, serta antara ujung jari dan titik tengah
+      const tip = landmarks[fingerTip];
+
+      // Menghitung jarak menggunakan rumus Pythagoras (jarak Euclidean)
+      const distanceBaseToTip = Math.sqrt(Math.pow(tip[0] - base[0], 2) + Math.pow(tip[1] - base[1], 2));
+      const distanceMiddleToTip = Math.sqrt(Math.pow(tip[0] - middle[0], 2) + Math.pow(tip[1] - middle[1], 2));
+
+      // Jika jarak antara ujung jari dan pangkal lebih besar daripada jarak antara ujung jari dan titik tengah,
+      // maka jari dianggap tidak dilipat
+      return distanceBaseToTip > distanceMiddleToTip;
+    }
+
+    function drawHand(landmarks, xOffset) {
+      // Gambar garis untuk menghubungkan titik landmark jari
+      ctx.strokeStyle = '#00FF00'; // Warna garis
+      ctx.lineWidth = 2;
+
+      // Menyambungkan landmark jari ke jari dengan menggambar garis
+      // Dengan menambahkan offset x untuk menggambar tangan kiri atau kanan
+      drawFinger(landmarks, 0, 1, 2, 3, 4, xOffset); // Thumb
+      drawFinger(landmarks, 5, 6, 7, 8, xOffset); // Index
+      drawFinger(landmarks, 9, 10, 11, 12, xOffset); // Middle
+      drawFinger(landmarks, 13, 14, 15, 16, xOffset); // Ring
+      drawFinger(landmarks, 17, 18, 19, 20, xOffset); // Pinky
+    }
+
+    function drawFinger(landmarks, base, joint1, joint2, tip, xOffset) {
+      // Menggambar garis antar landmark jari (base -> joint1 -> joint2 -> tip)
+      ctx.beginPath();
+      ctx.moveTo(landmarks[base][0] + xOffset, landmarks[base][1]);
+      ctx.lineTo(landmarks[joint1][0] + xOffset, landmarks[joint1][1]);
+      ctx.lineTo(landmarks[joint2][0] + xOffset, landmarks[joint2][1]);
+      ctx.lineTo(landmarks[tip][0] + xOffset, landmarks[tip][1]);
+      ctx.stroke();
+    }
+
+    setup();
+  </script>
+</body>
+</html>
