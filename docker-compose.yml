@@ -2,14 +2,14 @@ version: '3.8'
 
 services:
   profile-site:
-    image: ghcr.io/khoirony/personal-profile:latest
-    container_name: personal-profile-app
+    image: ghcr.io/khoirony/tensorflow-js:latest
+    container_name: tensorflow-js-app
     restart: always
     networks:
       - traefik_proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.profile.rule=Host(`khoirony.fun`) || Host(`www.khoirony.fun`)"
+      - "traefik.http.routers.profile.rule=Host(`tensorflow.khoirony.fun`)"
       - "traefik.http.routers.profile.entrypoints=web,websecure"
       - "traefik.http.routers.profile.tls=true"
       - "traefik.http.routers.profile.tls.certresolver=mytlschallenge"

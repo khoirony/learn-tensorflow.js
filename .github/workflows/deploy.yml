@@ -1,4 +1,4 @@
-name: Deploy Personal Profile to VPS
+name: Deploy Tensorflow JS to VPS
 
 on:
   push:
