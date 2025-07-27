@@ -9,10 +9,13 @@ services:
       - traefik_proxy
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.profile.rule=Host(`tensorflow.khoirony.fun`)"
-      - "traefik.http.routers.profile.entrypoints=web,websecure"
-      - "traefik.http.routers.profile.tls=true"
-      - "traefik.http.routers.profile.tls.certresolver=mytlschallenge"
+      - "traefik.http.routers.tensorflow.rule=Host(`tensorflow.khoirony.fun`)"
+      - "traefik.http.routers.tensorflow.entrypoints=web,websecure"
+      - "traefik.http.routers.tensorflow.tls=true"
+      - "traefik.http.routers.tensorflow.tls.certresolver=mytlschallenge"
+      # Tambahkan label ini untuk menautkan router ke service secara eksplisit
+      - "traefik.http.services.tensorflow.loadbalancer.server.port=80" 
+      - "traefik.http.routers.tensorflow.service=tensorflow"
 
 networks:
   traefik_proxy:
